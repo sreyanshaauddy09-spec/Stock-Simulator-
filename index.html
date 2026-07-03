@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Carpe Diem – Stock Simulator</title>
+<style>
+:root{
+--bg:#0b132b;
+--panel:#14213d;
+--card:#1b294a;
+--accent:#4cafef;
+--accent-2:#357abd;
+--text:#ffffff;
+--muted:#eef4ff;
+--muted-2:#d7e3ff;
+--good:#3ddc97;
+--bad:#ff6b6b;
+--border:#ffffff33;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif;
+background:var(--bg); color:var(--text);
+}
+header{
+background:linear-gradient(90deg,#0e1a34,#18335f);
+padding:14px 16px; text-align:center; font-weight:800; letter-spacing:.3px;
+box-shadow:0 2px 14px #0008;
+}
+.wrap{max-width:1160px;margin:24px auto;padding:0 16px}
+.hidden{display:none !important}
+.panel{
+background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0
+6px 24px #0006;
+}
+.card{
+background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0
+4px 18px #0005;
+}
+.btn{
+display:inline-flex; align-items:center; justify-content:center;
+padding:10px 14px; border-radius:10px; border:1px solid transparent;
+font-weight:700; cursor:pointer; transition:.18s ease;
+}
+.btn-primary{ background:var(--accent); color:#041426 }
+.btn-primary:hover{ background:var(--accent-2) }
+.btn-ghost{ background:transparent; border-color:var(--border); color:var(--text) }
+.btn-ghost:hover{ background:#ffffff14 }
+/* Login */
+.login-shell{ min-height:70vh; display:grid; place-items:center; }
+.login-box{ width:min(480px,100%); padding:28px }
+.input{
+width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border);
+background:#0e1a34; color:#fff;
+}
+.input::placeholder{ color:#f0f5ff }
+label{ font-size:.9rem; color:var(--muted); margin-bottom:6px; display:inline-block }
+/* Grid */
+.grid{ display:grid; gap:16px }
+.grid-3{ grid-template-columns:repeat(3,1fr) }
+@media (max-width:960px){ .grid-3{ grid-template-columns:repeat(2,1fr) } }
+@media (max-width:640px){ .grid-3{ grid-template-columns:1fr } }
+/* Stock tiles */
+.tile{
+padding:12px; border-radius:12px; border:1px solid var(--border); background:#0f1c37;
+cursor:pointer; transition:transform .12s ease, border-color .12s ease;
+}
+.tile:hover{ transform:translateY(-1px); border-color:#ffffff55 }
+.tile .name{ font-weight:800; color:#fff }
+.tile .price{ color:#fff; margin-top:2px; font-weight:800 }
+/* Metrics row */
+.metrics{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px }
+@media (max-width:700px){ .metrics{ grid-template-columns:1fr } }
+.metric{
+padding:14px; border-radius:12px; border:1px solid var(--border); background:#0f1c37;
+text-align:center;
+}
+.metric .label{ font-size:.85rem; color:var(--muted-2); letter-spacing:.02em }
+.metric .value{ font-size:1.6rem; font-weight:800; margin-top:6px; color:#fff }
+/* Details */
+.details{ display:grid; grid-template-columns:2fr 1fr; gap:16px }
+@media (max-width:900px){ .details{ grid-template-columns:1fr } }
+canvas{ width:100%; height:220px; background:#0b1730; border:1px solid var(--border);
+border-radius:12px }
+.row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+.spacer{ flex:1 }
+.muted{ color:var(--muted) }
+hr.sep{ border:none; height:1px; background:var(--border); margin:10px 0 }
+table{ width:100%; border-collapse:separate; border-spacing:0 8px }
+th,td{ text-align:left; padding:8px 10px; color:#fff }
+th{ color:#e9f1ff; font-weight:800; border-bottom:1px solid var(--border) }
+tr.data{ background:#0f1c37; border:1px solid var(--border) }
+tr.data td{ border-top:1px solid var(--border); border-bottom:1px solid var(--border) }
+small.err{ color:#ffd0d0 }
+</style>
+</head>
+<body>
+<header>Carpe Diem – Stock Simulator</header>
+<main class="wrap">
+<!-- LOGIN -->
+<section id="loginSection" class="panel login-shell">
+<form id="loginForm" class="login-box card" autocomplete="on" novalidate>
+<h2 style="margin:0 0 14px 0">Sign in</h2>
+<div class="grid">
+<div>
+<label for="email">Email</label>
+<input id="email" type="email" class="input" placeholder="name@gsis.ac.in" required />
+</div>
+<div>
+<label for="password">Password</label>
+<input id="password" type="password" class="input" placeholder="••••••••" required />
+</div>
+<div class="row" style="margin-top:4px">
+<!-- ✅ FIX: type changed to button -->
+<button id="loginBtn" class="btn btn-primary" type="button">Log in</button>
+<span id="loginError" class="muted" style="margin-left:8px"></span>
+</div>
+</div>
+</form>
+</section>
+<!-- DASHBOARD -->
+<section id="dashboard" class="hidden">
+<div class="panel" style="padding:12px 14px; display:flex; align-items:center; gap:10px;
+flex-wrap:wrap">
+<strong id="roleHeader">Welcome</strong>
+<span class="spacer"></span>
+<button id="logoutBtn" class="btn btn-ghost">Log out</button>
+</div>
+<!-- Trader metrics (NEVER shown to admins) -->
+<div id="traderMetrics" class="metrics hidden" style="margin:16px 0">
+<div class="metric">
+<div class="label">Working Capital</div>
+<div class="value">₹<span id="workingCap">0.00</span></div>
+</div>
+<div class="metric">
+<div class="label">Invested Capital</div>
+<div class="value">₹<span id="investedCap">0.00</span></div>
+</div>
+<div class="metric">
+<div class="label">Profit / Loss</div>
+<div class="value" id="profitLoss">0.00%</div>
+</div>
+</div>
+<!-- Stocks -->
+<div class="panel" style="padding:16px">
+<div class="row" style="margin-bottom:10px">
+<h3 style="margin:0">Stocks</h3>
+<span class="spacer"></span>
+</div>
+<div id="stockList" class="grid grid-3"></div>
+</div>
+<!-- Details + Admin/Trader column -->
+<section class="details" style="margin-top:16px">
+<!-- LEFT: Trader = chart+trade; Admin = portfolio viewer -->
+<div class="panel" style="padding:16px">
+<div class="row">
+<h3 id="detailName" style="margin:0">Select a stock</h3>
+<span class="spacer"></span>
+<div id="detailPrice" class="muted"></div>
+</div>
+<!-- Trader chart -->
+<canvas id="chart" width="900" height="220"></canvas>
+<!-- Trader trade bar -->
+<div id="tradeBar" class="row" style="margin-top:10px">
+<label for="qty" class="muted">Qty</label>
+<input id="qty" class="input" type="number" min="1" value="1" style="width:120px" />
+<button id="buyBtn" class="btn btn-primary">Buy</button>
+<button id="sellBtn" class="btn btn-ghost">Sell</button>
+<span id="tradeMsg" class="muted"></span>
+</div>
+<div id="autoRow" class="row" style="margin-top:10px">
+<label for="autoPrice" class="muted">Auto-sell at price</label>
+<input id="autoPrice" class="input" type="number" min="0" placeholder="e.g. 1200"
+style="width:160px" />
+<input id="autoQty" class="input" type="number" min="1" placeholder="qty"
+style="width:120px" />
+<button id="setAutoBtn" class="btn btn-primary">Set Auto-Sell</button>
+<button id="clearAutoBtn" class="btn btn-ghost">Clear</button>
+<span id="autoMsg" class="muted"></span>
+</div>
+<!-- Admin-only portfolio view -->
+<div id="adminPortfolioView" class="hidden">
+<h3 style="margin:14px 0 8px 0">View Trader Portfolio</h3>
+<div class="row" style="margin-bottom:8px">
+<select id="traderSelect" class="input" style="max-width:420px;"></select>
+</div>
+<div id="portfolioWrap" class="card" style="padding:10px; display:none">
+<h4 id="pfTitle" style="margin:6px 0">Portfolio</h4>
+<div class="row muted" id="pfSummary"></div>
+<table style="margin-top:6px">
+<thead><tr><th>Stock</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+<tbody id="pfTable"></tbody>
+</table>
+<h4 style="margin:12px 0 6px 0">Trade History</h4>
+<div id="historyWrap" class="card" style="padding:8px; max-height:240px;
+overflow:auto">
+<table style="width:100%">
+<thead><tr><th>Time</th><th>Action</th><th>Stock</th><th>Qty</th><th>Price</th><th>Valu
+e</th></tr></thead>
+<tbody id="historyTable"></tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT: Admin controls OR Trader portfolio -->
+<div class="panel" style="padding:16px">
+<div id="traderSide" class="hidden">
+<h3 style="margin-top:0">My Portfolio</h3>
+<div class="card" style="padding:10px; max-height:260px; overflow:auto">
+<div id="traderPfSummary" class="row muted" style="margin-bottom:6px"></div>
+<table>
+<thead><tr><th>Stock</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+<tbody id="traderPfTable"></tbody>
+</table>
+</div>
+</div>
+<h3 style="margin-top:0">Admin</h3>
+<div id="adminOnlyHint" class="muted">Only visible for admins</div>
+<div id="adminControls" class="hidden">
+<div class="row" style="align-items:baseline">
+<label class="muted" style="margin-right:6px">Selected stock:</label>
+<strong id="adminSelected" style="font-weight:800">None</strong>
+<span class="muted" id="adminSelectedPrice" style="margin-left:6px"></span>
+</div>
+<div class="row" style="margin-top:8px">
+<label class="muted">Adjust selected stock</label>
+</div>
+<div class="row">
+<button id="raiseBtn" class="btn btn-primary">Increase 10%</button>
+<button id="lowerBtn" class="btn btn-ghost">Decrease 10%</button>
+<button id="raise50Btn" class="btn btn-primary">Increase 50%</button>
+<button id="lower50Btn" class="btn btn-ghost">Decrease 50%</button>
+</div>
+<hr class="sep" />
+<div class="row" style="margin-top:10px">
+<label class="muted">All Stocks Control</label>
+</div>
+<div class="row">
+<button id="freezeAllBtn" class="btn btn-ghost"
+style="border-color:#ff6b6b;color:#ff6b6b">Freeze All</button>
+<button id="unfreezeAllBtn" class="btn btn-primary">Unfreeze All</button>
+<span id="allFreezeMsg" class="muted"></span>
+</div>
+<hr class="sep" />
+<div class="row">
+<label class="muted">Set starting funds for ALL traders</label>
+</div>
+<div class="row">
+<input id="allFunds" class="input" type="number" min="0" placeholder="e.g. 100000"
+style="width:180px" />
+<button id="applyFundsBtn" class="btn btn-primary">Apply</button>
+<span id="fundsMsg" class="muted"></span>
+</div>
+<hr class="sep" />
+<button id="resetBtn" class="btn btn-ghost"
+style="border-color:#ffc107;color:#ffc107;width:100%">⚠ Hard RESET (All Traders +
+Stocks)</button>
+<div class="row" style="margin-top:10px">
+<button id="freezeBtn" class="btn btn-ghost"
+style="border-color:#ff6b6b;color:#ff6b6b">Freeze Selected</button>
+<button id="unfreezeBtn" class="btn btn-primary">Unfreeze Selected</button>
+<span id="freezeMsg" class="muted"></span>
+</div>
+<hr class="sep" />
+<h4 style="margin:6px 0">Trader Rankings</h4>
+<div id="rankWrap" class="card" style="padding:10px; max-height:260px;
+overflow:auto">
+<table>
+<thead><tr><th>#</th><th>Trader</th><th>Total
+Equity</th><th>P/L</th></tr></thead>
+<tbody id="rankTable"></tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+</section>
+</main>
+<!-- APP (Firebase + logic) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+setPersistence, browserSessionPersistence } from
+"https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot,
+query, where, runTransaction } from
+"https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyD7rhJ8zABu2ioMsI9KP4s5QX1oLlq0ZYo",
+  authDomain: "stock-simulator-73680.firebaseapp.com",
+  projectId: "stock-simulator-73680",
+  storageBucket: "stock-simulator-73680.firebasestorage.app",
+  messagingSenderId: "636721023156",
+  appId: "1:636721023156:web:4c749802f1223f2c12efe1",
+  measurementId: "G-QT5J2TV8XY"
+};
+const APP_ID = "carpe_diem";
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getFirestore(app);
+(async () => {
+try { await setPersistence(auth, browserSessionPersistence); }
+catch(e){ console.warn("Auth persistence not set:", e?.message||e); }
+})();
+const $ = (id)=>document.getElementById(id);
+const loginSection = $("loginSection");
+const loginBtn = $("loginBtn");
+const loginError = $("loginError");
+const dashboard = $("dashboard");
+const roleHeader = $("roleHeader");
+const logoutBtn = $("logoutBtn");
+// ✅ FIX: handle login on button click instead of form submit
+loginBtn.addEventListener("click", async (e)=>{
+e.preventDefault();
+loginError.textContent = "";
+loginBtn.disabled = true;
+loginBtn.textContent = "Logging in…";
+const email = $("email").value.trim();
+const pass = $("password").value.trim();
+try{
+await signInWithEmailAndPassword(auth, email, pass);
+}catch(err){
+loginError.innerHTML = `<small class="err">${err.message}</small>`;
+}finally{
+loginBtn.disabled = false;
+loginBtn.textContent = "Log in";
+}
+});
+logoutBtn.addEventListener("click", async ()=>{
+try{ await signOut(auth); }catch(_){}
+location.reload();
+});
+const traderMetrics = $("traderMetrics");
+const workingCapEl = $("workingCap");
+const investedCapEl = $("investedCap");
+const profitLossEl = $("profitLoss");
+const stockList = $("stockList");
+const detailName = $("detailName");
+const detailPrice = $("detailPrice");
+const chartEl = $("chart");
+const qtyEl = $("qty");
+const tradeMsg = $("tradeMsg");
+const tradeBar = $("tradeBar");
+const adminPortfolioView = $("adminPortfolioView");
+const autoPrice = $("autoPrice");
+const autoQty = $("autoQty");
+const setAutoBtn = $("setAutoBtn");
+const clearAutoBtn= $("clearAutoBtn");
+const autoMsg = $("autoMsg");
+const adminOnlyHint = $("adminOnlyHint");
+const adminControls = $("adminControls");
+const raiseBtn = $("raiseBtn");
+const lowerBtn = $("lowerBtn");
+const raise50Btn = $("raise50Btn");
+const lower50Btn = $("lower50Btn");
+const allFunds = $("allFunds");
+const applyFundsBtn = $("applyFundsBtn");
+const fundsMsg = $("fundsMsg");
+const rankTable = $("rankTable");
+const traderSelect = $("traderSelect");
+const portfolioWrap = $("portfolioWrap");
+const pfTitle = $("pfTitle");
+const pfSummary = $("pfSummary");
+const pfTable = $("pfTable");
+const adminSelected = $("adminSelected");
+const adminSelectedPrice = $("adminSelectedPrice");
+const freezeBtn = $("freezeBtn");
+const unfreezeBtn = $("unfreezeBtn");
+const freezeMsg = $("freezeMsg");
+const freezeAllBtn = $("freezeAllBtn");
+const unfreezeAllBtn = $("unfreezeAllBtn");
+const allFreezeMsg = $("allFreezeMsg");
+const traderSide = $("traderSide");
+const traderPfSummary = $("traderPfSummary");
+const traderPfTable = $("traderPfTable");
+const buyBtn = $("buyBtn");
+const sellBtn = $("sellBtn");
+const historyTable = $("historyTable");
+/***** State *****/
+let me = null, myRole = null;
+let selectedId = null; // This will now store the slug, not the Firebase document ID
+let myTrader = null; // <--- This is the line you ADD
+// id -> { firebaseDocId, name, baseline, price, defaultBaseline, frozen }
+let stocks = {}; // Keyed by slug(name)
+// chart state (bar graph)
+let series = [];
+let lastSampleTime = 0;
+// price step timer
+// DECREASED DELAY: TICK_MS from 3000 to 1000 for more responsiveness
+const TICK_MS = 1000;
+let lastProcessedTick = -1; // price tick
+let lastAutosTick = -1; // <-- separate gate for auto-sells (FIX)
+const SEED_STOCKS = [
+"Reliance Industries","TCS","Infosys","HDFC Bank","ICICI Bank",
+"SBI","Bharti Airtel","HCL Technologies","Asian Paints","Wipro",
+"Tata Motors","Adani Enterprises","Hindustan Unilever","Larsen & Toubro","Bajaj Finance",
+"Kotak Mahindra Bank","UltraTech Cement","NTPC","JSW Steel","Tech Mahindra",
+"Power Grid","Adani Ports","Axis Bank","Maruti Suzuki","Grasim Industries"
+];
+/***** Pricing helpers (step every 3s) *****/
+function clamp(n){ return Math.max(1, Number.isFinite(n)? n : 0); }
+function currentPriceFor(stock){
+if (!stock) return 0;
+if (Number.isFinite(stock.price)) return stock.price;
+const base = Number.isFinite(stock.baseline) ? stock.baseline : (stock.defaultBaseline||500);
+return base;
+}
+function jumpOnce(stock){
+const base = Number.isFinite(stock.baseline) ? stock.baseline : (stock.defaultBaseline||500);
+if (stock.frozen) { stock.price = base; return; }
+const mag = 0.04 + Math.random()*0.01; // 1–3%
+const sign = Math.random() < 0.5 ? -1 : 1;
+const next = base * (1 + sign*mag);
+stock.price = Math.round(next * 100) / 100;
+}
+/***** Auth & Roles *****/
+onAuthStateChanged(auth, async (user)=>{
+if(!user){ showLogin(); return; }
+me = user;
+// role by UID first; fallback by email
+let myRoleDoc = await getDoc(doc(db,"artifacts",APP_ID,"public","data","roles", user.uid));
+if (myRoleDoc.exists()){
+myRole = myRoleDoc.data().role;
+} else {
+const rolesCol = collection(db,"artifacts",APP_ID,"public","data","roles");
+const qEmail = query(rolesCol, where("email","==", user.email));
+const snap = await getDocs(qEmail);
+myRole = (!snap.empty) ? (snap.docs[0].data().role) : null;
+}
+if(!myRole){ showLogin("Role not found. Create /roles/<UID> with {email, role}."); return; }
+roleHeader.textContent = `Welcome, ${myRole}`;
+// view toggles
+traderMetrics.classList.toggle("hidden", myRole === "admin");
+const isAdmin = myRole === "admin";
+chartEl.classList.toggle("hidden", isAdmin);
+tradeBar.classList.toggle("hidden", isAdmin);
+$("autoRow").classList.toggle("hidden", isAdmin);
+adminPortfolioView.classList.toggle("hidden", !isAdmin);
+adminControls.classList.toggle("hidden", !isAdmin);
+adminOnlyHint.classList.toggle("hidden", isAdmin);
+traderSide.classList.toggle("hidden", isAdmin);
+loginSection.classList.add("hidden");
+dashboard.classList.remove("hidden");
+await bootstrapStocks();
+attachRealtime(); // baselines/frozen flags
+attachTraderDoc(); // my trader doc
+if (isAdmin) { loadRankingsLoop(); fillTraderDropdown(); }
+// Start step timer (shared for autos + price jumps)
+startTickTimer();
+// Start UI loop (updates tiles, chart sampling, metrics)
+startAnimationLoop();
+});
+function showLogin(msg){
+dashboard.classList.add("hidden");
+loginSection.classList.remove("hidden");
+if (msg) loginError.textContent = msg;
+}
+// Stable login - NOTE: the form submit handler was intentionally replaced by button handler
+above
+// The loginBtn click handler is used instead.
+logoutBtn.addEventListener("click", async ()=>{
+try{ await signOut(auth); }catch(_){}
+location.reload();
+});
+/***** Stocks *****/
+function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,"_"); }
+async function bootstrapStocks(){
+const col = collection(db,"artifacts",APP_ID,"public","data","stocks");
+const snap = await getDocs(col);
+const newStocks = {}; // Use a temporary object for building deduplicated stocks
+const existingFirebaseSlugs = new Set(); // Track slugs already in Firebase
+// Process existing Firebase documents first
+snap.forEach(d => {
+const data = d.data();
+const firebaseDocId = d.id; // Keep the original Firebase document ID
+const stockName = data.name || firebaseDocId; // Fallback to doc ID if name is missing
+const stockSlug = slug(stockName);
+const prev = newStocks[stockSlug] || {};
+const base = Number(data.baseline);
+newStocks[stockSlug] = {
+firebaseDocId: firebaseDocId,
+id: stockSlug, // This is the client-side unique identifier (the slug)
+name: stockName,
+baseline: Number.isFinite(base) ? base : prev.baseline,
+price: Number.isFinite(prev.price) ? prev.price : (Number.isFinite(base) ? base :
+(prev.defaultBaseline || +(300 + Math.random()*900).toFixed(2))),
+defaultBaseline: prev.defaultBaseline || +(300 + Math.random()*900).toFixed(2),
+frozen: !!data.frozen
+};
+existingFirebaseSlugs.add(stockSlug);
+});
+// Add SEED_STOCKS that are not yet represented in our newStocks object (and thus
+Firebase)
+for(const name of SEED_STOCKS){
+const stockSlug = slug(name);
+if (!newStocks[stockSlug]){ // If this stock name isn't already processed from Firebase
+const base = +(300+Math.random()*900).toFixed(2);
+newStocks[stockSlug] = {
+firebaseDocId: stockSlug, // For new seeds, firebaseDocId will be the slug
+id: stockSlug,
+name,
+baseline: base,
+price: base,
+defaultBaseline: base,
+frozen:false
+};
+}
+if (!existingFirebaseSlugs.has(stockSlug)){
+try{
+await setDoc(doc(col,stockSlug), { name, baseline: newStocks[stockSlug].baseline,
+frozen:false }, { merge:true });
+}catch(_){ console.error("Error setting new stock in Firebase:", name); }
+}
+}
+// Finally, update the global stocks object
+stocks = newStocks;
+}
+function attachRealtime(){
+const col = collection(db,"artifacts",APP_ID,"public","data","stocks");
+onSnapshot(col, (snap)=>{
+const updatedStocks = {}; // Build a new object to ensure clean state
+const seenSlugs = new Set(); // Track slugs seen in this snapshot
+snap.forEach(d => {
+const data = d.data()||{};
+const firebaseDocId = d.id; // Original Firebase doc ID
+const stockName = data.name || firebaseDocId;
+const stockSlug = slug(stockName);
+seenSlugs.add(stockSlug);
+const prev = stocks[stockSlug] || {}; // Get previous state by slug
+const base = Number(data.baseline);
+const baselineChanged = Number.isFinite(prev.baseline) && Number.isFinite(base) &&
+base !== prev.baseline;
+const priceInit = baselineChanged
+? base
+: (Number.isFinite(prev.price) ? prev.price : (Number.isFinite(base) ? base :
+prev.defaultBaseline));
+updatedStocks[stockSlug] = {
+firebaseDocId: firebaseDocId, // Store the Firebase doc ID
+id: stockSlug, // Client-side unique ID
+name: stockName,
+baseline: Number.isFinite(base) ? base : prev.baseline,
+price: clamp(priceInit),
+defaultBaseline: prev.defaultBaseline || +(300 + Math.random()*900).toFixed(2),
+frozen: !!data.frozen
+};
+});
+// Add back any existing stocks that were not in the current snapshot but we still want to
+keep
+Object.values(stocks).forEach(s => {
+if (!seenSlugs.has(s.id)) {
+updatedStocks[s.id] = s;
+}
+});
+// Update the global stocks object
+stocks = updatedStocks;
+renderStockTiles();
+if (selectedId && stocks[selectedId]) detailName.textContent = stocks[selectedId].name;
+else if (selectedId && !stocks[selectedId]) { // if selected stock was removed
+selectedId = null;
+detailName.textContent = "Select a stock";
+detailPrice.textContent = "";
+adminSelected.textContent = "None";
+adminSelectedPrice.textContent = "";
+}
+updateTradeControls();
+});
+}
+function renderStockTiles(){
+// Clear current tiles
+stockList.innerHTML = "";
+// Sort stocks by name and render
+Object.values(stocks).sort((a,b)=>a.name.localeCompare(b.name)).forEach(s => {
+const price = currentPriceFor(s);
+const tile = document.createElement("button");
+tile.className = "tile";
+tile.innerHTML = `<div class="name">${s.name}${s.frozen?' • <small
+style="color:#ffb3b3;font-weight:700">FROZEN</small>':''}</div><div class="price">₹ <span
+id="p-${s.id}">${fmt(price)}</span></div>`;
+tile.addEventListener("click", ()=>selectStock(s.id));
+stockList.appendChild(tile);
+});
+}
+function updateTradeControls(){
+const s = selectedId ? stocks[selectedId] : null;
+const isFrozen = !!s?.frozen;
+buyBtn.disabled = sellBtn.disabled = isFrozen || (myRole!=="trader");
+setAutoBtn.disabled = clearAutoBtn.disabled = isFrozen || (myRole!=="trader");
+tradeMsg.textContent = isFrozen ? "This stock is frozen. Trading disabled." : "";
+}
+function selectStock(id){
+selectedId = id; // selectedId is now the slug
+const s = stocks[id];
+detailName.textContent = s.name;
+series = [];
+lastSampleTime = 0;
+tradeMsg.textContent = "";
+adminSelected.textContent = s.name || "None";
+adminSelectedPrice.textContent = `• ₹ ${fmt(currentPriceFor(s))}${s.frozen?' • FROZEN':''}`;
+raiseBtn.disabled = lowerBtn.disabled = raise50Btn.disabled = lower50Btn.disabled =
+(myRole!=="admin");
+updateTradeControls();
+drawChart();
+}
+// Admin ±10% / ±50%
+raiseBtn?.addEventListener("click", ()=> adjustSelected( 0.10));
+lowerBtn?.addEventListener("click", ()=> adjustSelected(-0.10));
+raise50Btn?.addEventListener("click", ()=> adjustSelected( 0.50));
+lower50Btn?.addEventListener("click", ()=> adjustSelected(-0.50));
+async function adjustSelected(delta){
+if(!selectedId || myRole!=="admin") return;
+const s = stocks[selectedId];
+// Use s.firebaseDocId to reference the actual Firebase document
+const ref = doc(db,"artifacts",APP_ID,"public","data","stocks", s.firebaseDocId);
+const base = Number.isFinite(s.baseline) ? s.baseline : (s.defaultBaseline||500);
+const newBase = +(base * (1+delta)).toFixed(2);
+// Optimistic UI
+s.baseline = newBase; s.price = newBase;
+stocks[selectedId] = s;
+adminSelectedPrice.textContent = `• ₹ ${fmt(newBase)}${s.frozen?' • FROZEN':''}`;
+detailPrice.textContent = `₹ ${fmt(newBase)}${s.frozen?' • FROZEN':''}`;
+renderStockTiles();
+// Write baseline
+try{ await updateDoc(ref, { baseline:newBase }); }
+// If doc doesn't exist, create it using its firebaseDocId (which might be the slug if it was a
+seed)
+catch(err){ try{ await setDoc(ref, { name: s.name || selectedId, baseline: newBase }, { merge:
+true }); }catch(_){ } }
+}
+/***** Freeze / Unfreeze *****/
+freezeBtn?.addEventListener("click", async ()=>{
+if(!selectedId || myRole!=="admin") return;
+freezeMsg.textContent = "";
+const s = stocks[selectedId];
+const ref = doc(db,"artifacts",APP_ID,"public","data","stocks", s.firebaseDocId);
+try{
+await setDoc(ref, { name: s.name || selectedId, frozen: true }, { merge: true });
+s.frozen = true; stocks[selectedId] = s;
+freezeMsg.textContent = "Selected stock frozen.";
+updateTradeControls(); renderStockTiles();
+}catch(e){ freezeMsg.textContent = "Could not freeze stock."; }
+});
+unfreezeBtn?.addEventListener("click", async ()=>{
+if(!selectedId || myRole!=="admin") return;
+freezeMsg.textContent = "";
+const s = stocks[selectedId];
+const ref = doc(db,"artifacts",APP_ID,"public","data","stocks", s.firebaseDocId);
+try{
+await setDoc(ref, { name: s.name || selectedId, frozen: false }, { merge: true });
+s.frozen = false; stocks[selectedId] = s;
+freezeMsg.textContent = "Selected stock unfrozen.";
+updateTradeControls(); renderStockTiles();
+}catch(e){ freezeMsg.textContent = "Could not unfreeze stock."; }
+});
+// NEW: Freeze All Stocks
+freezeAllBtn?.addEventListener("click", async ()=>{
+if(myRole!=="admin") return;
+allFreezeMsg.textContent = "Freezing all stocks...";
+const stocksCol = collection(db,"artifacts",APP_ID,"public","data","stocks");
+try {
+const sSnap = await getDocs(stocksCol);
+for(const d of sSnap.docs){
+const stockDocId = d.id;
+const stockName = d.data().name || stockDocId;
+const stockSlug = slug(stockName);
+await updateDoc(d.ref, { frozen: true });
+if (stocks[stockSlug]) { stocks[stockSlug].frozen = true; }
+}
+allFreezeMsg.textContent = "All stocks frozen.";
+renderStockTiles();
+updateTradeControls();
+} catch(e) {
+allFreezeMsg.textContent = "Could not freeze all stocks.";
+console.error("Error freezing all stocks:", e);
+}
+});
+// NEW: Unfreeze All Stocks
+unfreezeAllBtn?.addEventListener("click", async ()=>{
+if(myRole!=="admin") return;
+allFreezeMsg.textContent = "Unfreezing all stocks...";
+const stocksCol = collection(db,"artifacts",APP_ID,"public","data","stocks");
+try {
+const sSnap = await getDocs(stocksCol);
+for(const d of sSnap.docs){
+const stockDocId = d.id;
+const stockName = d.data().name || stockDocId;
+const stockSlug = slug(stockName);
+await updateDoc(d.ref, { frozen: false });
+if (stocks[stockSlug]) { stocks[stockSlug].frozen = false; }
+}
+allFreezeMsg.textContent = "All stocks unfrozen.";
+renderStockTiles();
+updateTradeControls();
+} catch(e) {
+allFreezeMsg.textContent = "Could not unfreeze all stocks.";
+console.error("Error unfreezing all stocks:", e);
+}
+});
+/***** Trader doc + Auto-sell (stop-loss: price <= target) *****/
+function traderRef(uid){ return doc(db,"artifacts",APP_ID,"public","data","traders", uid); }
+function updateTraderMetrics(){
+if (!myTrader) return;
+const cash = +myTrader.cash || 0;
+const invested = Object.entries(myTrader.portfolio || {}).reduce((sum,[sid,pos])=>{
+const st=stocks[sid];
+if(st) sum += (pos.quantity||0)*currentPriceFor(st);
+return sum;
+},0);
+const initial = +myTrader.initialCash || 0;
+const pl = (cash + invested) - initial;
+const plPct = initial ? (pl/initial*100) : 0;
+workingCapEl.textContent = fmt(cash);
+investedCapEl.textContent = fmt(invested);
+profitLossEl.style.color = pl>=0 ? "var(--good)" : "var(--bad)";
+profitLossEl.textContent = `${pl>=0?'+':''}${fmt(plPct)}%`;
+renderTraderSidePortfolio();
+}
+async function attachTraderDoc(){
+if (!me) return;
+const ref = traderRef(me.uid);
+const s = await getDoc(ref);
+if(!s.exists()){
+await setDoc(ref, { cash: 100000, initialCash: 100000, portfolio:{}, autos:{}, history:[] }, {
+merge:true });
+}
+onSnapshot(ref, snap=>{
+myTrader = snap.exists()? snap.data() : { cash:0, initialCash:0, portfolio:{}, autos:{},
+history:[] };
+if (myRole === "trader") {
+traderMetrics.classList.remove("hidden");
+traderSide.classList.remove("hidden");
+updateTraderMetrics();
+renderTraderSidePortfolio();
+}
+});
+}
+setAutoBtn.addEventListener("click", async ()=>{
+autoMsg.textContent = "";
+if (!me || myRole!=="trader"){ autoMsg.textContent = "Traders only."; return; }
+if (!selectedId){ autoMsg.textContent = "Select a stock."; return; }
+const st = stocks[selectedId];
+if (st?.frozen){ autoMsg.textContent = "This stock is frozen. Trading disabled."; return; }
+const p = parseFloat(autoPrice.value);
+const q = Math.max(1, Math.min(1_000_000, parseInt(autoQty.value||"1",10)));
+if (!Number.isFinite(p) || p<=0){ autoMsg.textContent = "Enter a valid price."; return; }
+const ref = traderRef(me.uid);
+const autos = { ...(myTrader?.autos||{}) };
+autos[selectedId] = { price:p, qty:q }; // selectedId (slug) used as key
+await setDoc(ref, { autos }, { merge:true });
+autoMsg.textContent = `Auto-sell set: ₹${fmt(p)} / ${q}`;
+});
+clearAutoBtn.addEventListener("click", async ()=>{
+autoMsg.textContent = "";
+if (!me || myRole!=="trader" || !selectedId) return;
+const ref = traderRef(me.uid);
+const autos = { ...(myTrader?.autos||{}) };
+delete autos[selectedId]; // selectedId (slug) used as key
+await setDoc(ref, { autos }, { merge:true });
+autoPrice.value = ""; autoQty.value = "";
+autoMsg.textContent = "Cleared.";
+});
+async function checkAutoSells(tick){
+if (!me || myRole!=="trader" || !myTrader) return;
+if (tick === lastAutosTick) return; // already processed this tick
+lastAutosTick = tick;
+const autos = myTrader.autos || {};
+for (const [sid, rule] of Object.entries(autos)){ // sid here is the stock slug
+const st = stocks[sid]; if (!st || st.frozen) continue;
+const price = currentPriceFor(st);
+if (price <= rule.price){ // stop-loss
+const ref = traderRef(me.uid);
+try{
+await runTransaction(db, async (tx)=>{
+const snap = await tx.get(ref);
+const t = snap.exists()? snap.data(): { cash:0, initialCash:0, portfolio:{}, autos:{},
+history:[] };
+const pos = t.portfolio?.[sid] || { quantity:0 };
+const sellQty = Math.min(rule.qty||0, pos.quantity||0);
+const newAutos = { ...(t.autos||{}) }; delete newAutos[sid];
+const history = Array.isArray(t.history) ? [...t.history] : [];
+if (sellQty > 0){
+const newCash = (+t.cash||0) + sellQty*price;
+const newQty = (pos.quantity||0) - sellQty;
+const newPortfolio = { ...(t.portfolio||{}) };
+if (newQty>0) newPortfolio[sid] = { quantity:newQty }; else delete newPortfolio[sid];
+history.push({
+ts: Date.now(), kind: "auto-sell", stockId: sid, stockName: stocks[sid]?.name||sid,
+qty: sellQty, price: +price, value: +(sellQty*price).toFixed(2)
+});
+if (history.length > 500) history.splice(0, history.length-500);
+tx.set(ref, { cash:+newCash.toFixed(2), portfolio:newPortfolio, autos:newAutos, history
+}, { merge:true });
+} else {
+tx.set(ref, { autos:newAutos, history }, { merge:true });
+}
+});
+if (sid===selectedId){
+autoMsg.textContent = `Auto-sold at ₹${fmt(price)} (rule cleared)`;
+autoPrice.value = ""; autoQty.value = "";
+}
+}catch(_){ /* ignore transient */ }
+}
+}
+}
+/***** Admin helpers: rankings & portfolio viewer *****/
+async function portfolioAndStats(uid){
+const s = await getDoc(traderRef(uid));
+const data = s.exists()? s.data(): { cash:0, initialCash:0, portfolio:{} };
+let invested = 0;
+Object.entries(data.portfolio||{}).forEach(([sid,pos])=>{
+const st = stocks[sid]; if (!st) return;
+invested += (pos.quantity||0) * currentPriceFor(st);
+});
+const working = +data.cash || 0;
+const initial = +data.initialCash || 0;
+const pl = (working + invested) - initial;
+const plPct = initial ? (pl/initial*100) : 0;
+return { working, invested, pl, plPct, data };
+}
+applyFundsBtn.addEventListener("click", async ()=>{
+if(myRole!=="admin")return;
+const amt=parseFloat(allFunds.value);
+if(!Number.isFinite(amt)||amt<=0){fundsMsg.textContent="Enter a valid amount.";return;}
+const rolesCol=collection(db,"artifacts",APP_ID,"public","data","roles");
+const rSnap=await getDocs(rolesCol);
+for(const d of rSnap.docs){
+if(d.data().role==="trader"){
+await
+setDoc(traderRef(d.id),{cash:amt,initialCash:amt,portfolio:{},autos:{},history:[]},{merge:true});
+}
+}
+fundsMsg.textContent="Updated for all traders.";
+});
+const resetBtn = $("resetBtn");
+resetBtn.addEventListener("click", async ()=>{
+if(myRole!=="admin")return;
+if(!confirm("This will reset ALL traders and ALL stocks. Continue?")) return;
+const rolesCol=collection(db,"artifacts",APP_ID,"public","data","roles");
+const rSnap=await getDocs(rolesCol);
+for(const d of rSnap.docs){
+if(d.data().role==="trader"){
+await
+setDoc(traderRef(d.id),{cash:100000,initialCash:100000,portfolio:{},autos:{},history:[]},{merge:tru
+e});
+}
+}
+const stocksCol=collection(db,"artifacts",APP_ID,"public","data","stocks");
+const sSnap=await getDocs(stocksCol);
+for(const d of sSnap.docs){
+const newBase=+(300+Math.random()*900).toFixed(2);
+try{ await updateDoc(d.ref,{baseline:newBase, frozen:false}); }
+catch(err){ await setDoc(d.ref,{baseline:newBase, frozen:false},{merge:true}); }
+}
+alert("System RESET complete.");
+});
+async function loadRankings(){
+const rolesCol = collection(db,"artifacts",APP_ID,"public","data","roles");
+const rSnap = await getDocs(rolesCol);
+const traders = rSnap.docs
+.filter(d=> (d.data().role==="trader"))
+.map(d=>({ uid:d.id, email:d.data().email||d.id }));
+const rows = [];
+for (const tr of traders){
+const stats = await portfolioAndStats(tr.uid);
+const total = stats.working + stats.invested;
+rows.push({ ...tr, total, pl: stats.pl });
+}
+rows.sort((a,b)=> b.total - a.total);
+rankTable.innerHTML = "";
+rows.forEach((r,i)=>{
+const tr = document.createElement("tr"); tr.className="data";
+tr.innerHTML = `<td>${i+1}</td><td>${r.email}</td><td>₹ ${fmt(r.total)}</td><td
+style="color:${r.pl>=0?'var(--good)':'var(--bad)'}">${r.pl>=0?'+':''}${fmt(r.pl)}</td>`;
+rankTable.appendChild(tr);
+});
+}
+function loadRankingsLoop(){ loadRankings(); setInterval(loadRankings, 6000); }
+function formatTime(ts){
+try{ return new Date(ts).toLocaleString('en-IN'); }catch(_){ return String(ts); }
+}
+async function fillTraderDropdown(){
+const rolesCol = collection(db,"artifacts",APP_ID,"public","data","roles");
+const rSnap = await getDocs(rolesCol);
+const traders = rSnap.docs.filter(d=> d.data().role==="trader");
+traderSelect.innerHTML = "";
+traders.forEach(d=>{
+const opt=document.createElement("option");
+opt.value=d.id; opt.textContent=d.data().email || d.id;
+traderSelect.appendChild(opt);
+});
+if (traderSelect.options.length) {
+traderSelect.selectedIndex = 0;
+subscribeTraderPortfolio(traderSelect.value); // realtime
+}
+}
+let pfUnsub = null;
+function traderRefById(uid){ return doc(db,"artifacts",APP_ID,"public","data","traders", uid); }
+traderSelect?.addEventListener("change", ()=>{
+subscribeTraderPortfolio(traderSelect.value);
+});
+function subscribeTraderPortfolio(uid){
+if (pfUnsub) { pfUnsub(); pfUnsub = null; }
+if (!uid){ portfolioWrap.style.display="none"; return; }
+pfUnsub = onSnapshot(traderRefById(uid), async (snap)=>{
+if (!snap.exists()){ portfolioWrap.style.display="none"; return; }
+const data = snap.data();
+pfTitle.textContent = `Portfolio – ${traderSelect.selectedOptions[0].textContent}`;
+// Portfolio table
+pfTable.innerHTML = "";
+Object.entries(data.portfolio||{}).forEach(([sid,pos])=>{
+const st = stocks[sid];
+if(!st) return;
+const p = currentPriceFor(st);
+const val = p * (pos.quantity||0);
+const tr = document.createElement("tr"); tr.className="data";
+tr.innerHTML = `<td>${st?.name||sid}</td><td>${pos.quantity||0}</td><td>₹
+${fmt(p)}</td><td>₹ ${fmt(val)}</td>`;
+pfTable.appendChild(tr);
+});
+portfolioWrap.style.display = "block";
+refreshAdminPortfolioSummary(uid, data);
+// Trade history table (latest first)
+const hist = Array.isArray(data.history) ? [...data.history] : [];
+hist.sort((a,b)=> b.ts - a.ts);
+historyTable.innerHTML = "";
+hist.slice(0,200).forEach(h=>{
+const tr = document.createElement("tr"); tr.className="data";
+const act = (h.kind||'').toUpperCase();
+tr.innerHTML =
+`<td>${formatTime(h.ts)}</td><td>${act}</td><td>${h.stockName||h.stockId||''}</td><td>${h.qty||
+0}</td><td>₹ ${fmt(h.price||0)}</td><td>₹ ${fmt(h.value||0)}</td>`;
+historyTable.appendChild(tr);
+});
+});
+}
+function refreshAdminPortfolioSummary(uid, data){
+const working = +data.cash || 0;
+let invested = 0;
+Object.entries(data.portfolio||{}).forEach(([sid,pos])=>{
+const st = stocks[sid]; if (!st) return;
+invested += (pos.quantity||0)*currentPriceFor(st);
+});
+const initial = +data.initialCash || 0;
+const pl = (working+invested)-initial;
+const plPct = initial? (pl/initial*100) : 0;
+pfSummary.textContent = `Working: ₹${fmt(working)} • Invested: ₹${fmt(invested)} • P/L:
+${pl>=0?'+':''}${fmt(pl)} (${fmt(plPct)}%)`;
+}
+/***** Chart (bar) + formatting *****/
+function fmt(n){ return
+(+n).toLocaleString("en-IN",{maximumFractionDigits:2,minimumFractionDigits:2}); }
+function drawChart(){
+const w = chartEl.width, h = chartEl.height;
+const ctx = chartEl.getContext("2d");
+ctx.clearRect(0,0,w,h);
+if (!series.length) return;
+let min = Math.min(...series), max = Math.max(...series);
+if (min === max){ min -= 1; max += 1; }
+const xStep = Math.max(1, Math.floor(w / Math.max(60, series.length)));
+for (let i=0; i<series.length; i++){
+const v = series[i];
+const norm = (v - min) / (max - min);
+const barH = Math.max(2, Math.round(norm * (h - 8)));
+const x = i * xStep;
+const up = i>0 && v>=series[i-1];
+ctx.fillStyle = up ? "#3ddc97" : "#ff6b6b";
+ctx.fillRect(x, h - barH, xStep-1, barH);
+}
+}
+/***** Ticks & UI loops *****/
+function startTickTimer(){
+const tickLoop = ()=>{
+const tick = Math.floor(Date.now()/TICK_MS);
+if (tick !== lastProcessedTick){
+// step changes (every TICK_MS)
+Object.values(stocks).forEach(s => jumpOnce(s));
+// process autos once per tick (FIXED)
+checkAutoSells(tick);
+lastProcessedTick = tick;
+}
+};
+// Increased frequency for better responsiveness: check every 200ms
+setInterval(tickLoop, 200);
+tickLoop();
+}
+function startAnimationLoop(){
+let last = performance.now();
+function frame(now){
+// Decreased delay for UI updates: from 100ms to 50ms
+if (now - last > 50){
+last = now;
+// update visible prices
+Object.values(stocks).forEach(s=>{
+const el = document.getElementById(`p-${s.id}`); // s.id is the slug
+if (el) el.textContent = fmt(currentPriceFor(s));
+});
+// update detail + chart sampling
+if (selectedId && stocks[selectedId]){ // selectedId is the slug
+const p = currentPriceFor(stocks[selectedId]);
+detailPrice.textContent = `₹ ${fmt(p)}${stocks[selectedId].frozen?' • FROZEN':''}`;
+if (!chartEl.classList.contains("hidden")) {
+// Decreased delay for chart sampling: from 200ms to 100ms
+if (now - lastSampleTime > 100){
+lastSampleTime = now;
+series.push(p);
+if (series.length > 120) series.shift();
+drawChart();
+}
+}
+}
+// refresh metrics for traders
+if (myRole==="trader"){ updateTraderMetrics(); }
+// refresh admin summary if a trader is selected
+if (traderSelect && traderSelect.value && portfolioWrap.style.display!=="none"){
+const uid = traderSelect.value;
+getDoc(traderRefById(uid)).then(s=>{ if(s.exists()) refreshAdminPortfolioSummary(uid,
+s.data()); });
+}
+}
+requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+}
+function renderTraderSidePortfolio(){
+if (!myTrader){ traderSide.classList.add("hidden"); return; }
+const portfolio = myTrader.portfolio || {};
+let invested = 0;
+traderPfTable.innerHTML = "";
+Object.entries(portfolio).forEach(([sid,pos])=>{
+const st = stocks[sid];
+if(!st) return;
+const p = currentPriceFor(st);
+const qty = pos.quantity || 0;
+const val = p * qty;
+invested += val;
+const tr = document.createElement("tr"); tr.className="data";
+tr.innerHTML = `<td>${st?.name||sid}</td><td>${qty}</td><td>₹ ${fmt(p)}</td><td>₹
+${fmt(val)}</td>`;
+traderPfTable.appendChild(tr);
+});
+const cash = +myTrader.cash || 0;
+const initial = +myTrader.initialCash || 0;
+const pl = (cash + invested) - initial;
+const plPct = initial ? (pl/initial*100) : 0;
+traderPfSummary.textContent = `Working: ₹${fmt(cash)} • Invested: ₹${fmt(invested)} •
+P/L: ${pl>=0?'+':''}${fmt(pl)} (${fmt(plPct)}%)`;
+}
+/***** Trading (transactional + history) *****/
+buyBtn.addEventListener("click", ()=> trade("buy"));
+sellBtn.addEventListener("click",()=> trade("sell"));
+async function trade(kind){
+tradeMsg.textContent = "";
+if (!me){ tradeMsg.textContent="Please log in."; return; }
+if (!selectedId){ tradeMsg.textContent="Select a stock first."; return; }
+const q = Math.max(1, parseInt(qtyEl.value||"1",10));
+const st = stocks[selectedId];
+if (st?.frozen){ tradeMsg.textContent = "This stock is frozen. Trading disabled."; return; }
+const price = currentPriceFor(st);
+const ref = traderRef(me.uid);
+try{
+await runTransaction(db, async (tx)=>{
+const snap = await tx.get(ref);
+const t = snap.exists()? snap.data(): { cash:100000, initialCash:100000, portfolio:{},
+autos:{}, history:[] };
+const portfolio = t.portfolio || {};
+const pos = portfolio[selectedId] || { quantity:0 }; // selectedId (slug) used as key
+const cash = +t.cash || 0;
+const history = Array.isArray(t.history) ? [...t.history] : [];
+if (kind === "buy"){
+const cost = q * price;
+if (cash < cost) throw new Error("Not enough cash.");
+const newCash = +(cash - cost).toFixed(2);
+const newQty = (pos.quantity||0) + q;
+const newPortfolio = { ...portfolio, [selectedId]: { quantity:newQty } };
+history.push({ ts: Date.now(), kind:"buy", stockId:selectedId, stockName:
+st?.name||selectedId, qty:q, price:+price, value:+(q*price).toFixed(2) });
+if (history.length > 500) history.splice(0, history.length-500);
+tx.set(ref, { cash:newCash, portfolio:newPortfolio, history }, { merge:true });
+} else {
+const have = pos.quantity||0;
+if (have < q) throw new Error("Not enough shares.");
+const newQty = have - q;
+const newCash = +(cash + q * price).toFixed(2);
+const newPortfolio = { ...portfolio };
+if (newQty > 0) newPortfolio[selectedId] = { quantity:newQty };
+else delete newPortfolio[selectedId];
+history.push({ ts: Date.now(), kind:"sell", stockId:selectedId, stockName:
+st?.name||selectedId, qty:q, price:+price, value:+(q*price).toFixed(2) });
+if (history.length > 500) history.splice(0, history.length-500);
+tx.set(ref, { cash:newCash, portfolio:newPortfolio, history }, { merge:true });
+}
+});
+tradeMsg.textContent = kind==="buy" ? `Bought ${q}` : `Sold ${q}`;
+}catch(err){
+tradeMsg.textContent = err?.message || "Trade failed. Try again.";
+}
+if (myRole==="trader") updateTraderMetrics();
+}
+</script>
+</body>
+</html>
